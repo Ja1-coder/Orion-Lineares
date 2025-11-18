@@ -69,7 +69,7 @@
                                     <td><strong>Z</strong></td>
                                     @for ($j = 1; $j <= $vars; $j++)
                                         <td>
-                                            <input type="text" name="z[]" class="form-control text-center" placeholder="0">
+                                            <input type="text" name="z[]" class="form-control text-center">
                                         </td>
                                     @endfor
                                     <td></td>
@@ -83,20 +83,19 @@
                                         @for ($j = 1; $j <= $vars; $j++)
                                             <td>
                                                 <input type="text" name="restricoes[{{ $i }}][coefs][]"
-                                                    class="form-control text-center" placeholder="0">
+                                                    class="form-control text-center" >
                                             </td>
                                         @endfor
                                         <td>
                                             <select name="restricoes[{{ $i }}][sinal]" class="form-select">
                                                 <option value=">=">>=</option>
-                                                <option value="<=">
-                                                    <=< /option>
+                                                <option value="<="><=</option>
                                                 <option value="=">=</option>
                                             </select>
                                         </td>
                                         <td>
                                             <input type="text" name="restricoes[{{ $i }}][rhs]" class="form-control text-center"
-                                                placeholder="0">
+                                                >
                                         </td>
                                         <td class="text-center">
                                             <button type="button" class="btn btn-delete-row">
@@ -143,5 +142,28 @@
             btnMin.classList.add('active');
             btnMax.classList.remove('active');
         });
+
+        document.addEventListener('DOMContentLoaded', () => {
+
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('.btn-delete-row')) return;
+
+                const btn = e.target.closest('.btn-delete-row');
+                const row = btn.closest('tr');
+
+                if (!row) return;
+
+                row.querySelectorAll('input').forEach(input => {
+                    input.value = 0;
+                });
+
+                const select = row.querySelector('select');
+                if (select) {
+                    select.value = ">=";
+                }
+            });
+
+        });
+
     </script>
 @endpush

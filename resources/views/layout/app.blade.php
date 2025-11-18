@@ -20,6 +20,9 @@
             --orion-cinza-claro: #F0F0F0;
             --orion-gradiente-fim: #2a7a7a;
             --orion-texto-escuro: #0a1f3d;
+            --orion-cabecalho-tabela: #3eb8a8;
+            --orion-celulas-tabela: #e8f4f3;
+            --orion-linhas-tabela: #d1d5db;
         }
 
         body {

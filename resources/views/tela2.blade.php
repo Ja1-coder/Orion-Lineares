@@ -64,10 +64,11 @@
                     <div class="mb-3">
                         <label for="metodo" class="form-label">Forma de Resolução</label>
                         <select class="form-select" id="metodo" name="metodo" required>
-                            <option value="" disabled selected>Selecione...</option>
-                            <option value="simplex_tabular">Simplex Tabular</option>
-                            <option value="grafico" disabled>Método Gráfico (em breve)</option>
+                            <option value="simplex_tabular" selected>Simplex Tabular (com Gráfico 2D)</option>
                         </select>
+                        <div class="form-text text-white-50">
+                            * O gráfico será gerado automaticamente para problemas com 2 variáveis.
+                        </div>
                     </div>
                 </div>
 
