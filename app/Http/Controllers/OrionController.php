@@ -5,9 +5,18 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use App\Services\SimplexService;
+
 
 class OrionController extends Controller
 {
+    protected $simplex;
+
+    public function __construct(SimplexService $simplex)
+    {
+        $this->simplex = $simplex;
+    }
+
     public function index(): View
     {
         return view('tela1');
@@ -42,7 +51,28 @@ class OrionController extends Controller
 
     public function solve(Request $request)
     {
-        $dadosDoProblema = $request->except('_token');
-        dd($dadosDoProblema);
+        //dd($request->all());
+        $tipo = $request->tipo_problema;
+        $numVars = $request->num_variaveis;
+        $numRests = $request->num_restricoes;
+
+        $Z = array_map('floatval', $request->z);
+
+        $restricoes = [];
+        foreach ($request->restricoes as $r) {
+            $restricoes[] = [
+                'coefs' => array_map('floatval', $r['coefs']),
+                'sinal' => $r['sinal'],
+                'rhs'   => floatval($r['rhs']),
+            ];
+        }
+
+        // agora usamos o serviço
+        $resultado = $this->simplex->resolver($tipo, $Z, $restricoes, $numVars);
+
+        //dd($resultado);
+        // retornar a view com o resultado
+        return view('resultado', compact('resultado'));
     }
+
 }
