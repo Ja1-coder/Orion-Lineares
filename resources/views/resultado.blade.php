@@ -46,6 +46,7 @@
                     </p>
                 </div>
             @endif
+
             <div class="card card-light p-3 p-md-4">
                 <div class="solution-box">
                     <h2 class="solution-title">Solução Final</h2>
@@ -67,38 +68,48 @@
                     </div>
                 </div>
 
-
                 @if(!empty($resultado['tableau_history']))
 
                     @foreach($resultado['tableau_history'] as $k => $step)
 
                         @php
+                            // tableau pode vir como $step ou $step['tableau']
                             $tableau = $step['tableau'] ?? $step;
                             $pivotRow = $step['pivot_row'] ?? null;
                             $pivotCol = $step['pivot_col'] ?? null;
 
+                            // número de colunas efetivas (exclui RHS)
+                            $numCols = isset($tableau[0]) ? count($tableau[0]) - 1 : 0;
+
+                            // construir lista de nomes de colunas exibidos:
+                            // usa os var_names passados e, se houver colunas extras, cria nomes genéricos (vN)
+                            $displayVarNames = $resultado['var_names'];
+                            if (count($displayVarNames) < $numCols) {
+                                for ($i = count($displayVarNames); $i < $numCols; $i++) {
+                                    $displayVarNames[] = 'v' . ($i + 1);
+                                }
+                            }
+
+                            // detectar variável básica em cada linha (apenas nas colunas 0..numCols-1)
                             $basicVars = [];
-
                             foreach ($tableau as $rowIndex => $row) {
-
                                 $found = false;
 
-                                for ($col = 0; $col < count($resultado['var_names']); $col++) {
+                                for ($col = 0; $col < $numCols; $col++) {
+                                    // construir a coluna
                                     $column = array_column($tableau, $col);
 
                                     $countOnes = 0;
                                     $countZeros = 0;
 
                                     foreach ($column as $v) {
-                                        if (abs($v - 1) < 1e-6)
-                                            $countOnes++;
-                                        if (abs($v) < 1e-6)
-                                            $countZeros++;
+                                        if (abs($v - 1) < 1e-6) $countOnes++;
+                                        if (abs($v) < 1e-6) $countZeros++;
                                     }
 
                                     if ($countOnes === 1 && $countZeros === count($column) - 1) {
                                         if (abs($tableau[$rowIndex][$col] - 1) < 1e-6) {
-                                            $basicVars[$rowIndex] = $resultado['var_names'][$col];
+                                            $basicVars[$rowIndex] = $displayVarNames[$col] ?? 'col'.$col;
                                             $found = true;
                                             break;
                                         }
@@ -106,23 +117,37 @@
                                 }
 
                                 if (!$found) {
-                                    $basicVars[$rowIndex] = 'Z';
+                                    // se for a última linha (objetivo) marca Z
+                                    if ($rowIndex === count($tableau) - 1) {
+                                        $basicVars[$rowIndex] = 'Z';
+                                    } else {
+                                        $basicVars[$rowIndex] = ''; // nada encontrado
+                                    }
                                 }
                             }
+
+                            // colspan correto: 1 (Basic) + numCols (vars) + 1 (RHS)
+                            $colspan = 1 + $numCols + 1;
                         @endphp
+
                         <table class="table-simplex">
                             <thead>
                                 <tr>
-                                    <th colspan="{{ 2 + count($resultado['var_names']) }}" class="iteration-header">
+                                    <th colspan="{{ $colspan }}" class="iteration-header">
                                         Iteração {{ $k }}
                                     </th>
                                 </tr>
 
                                 <tr>
                                     <th class="basic-cell">Basic</th>
-                                    @foreach ($resultado['var_names'] as $name)
-                                        <th class="basic-cell">{{ $name }}</th>
+
+                                    {{-- cabeçalho dinâmico das variáveis (apenas numCols) --}}
+                                    @foreach ($displayVarNames as $idx => $name)
+                                        @if($idx < $numCols)
+                                            <th class="basic-cell">{{ $name }}</th>
+                                        @endif
                                     @endforeach
+
                                     <th class="basic-cell">RHS</th>
                                 </tr>
                             </thead>
@@ -131,8 +156,11 @@
                                 @foreach($tableau as $i => $linha)
                                     <tr>
                                         <td class="basic-col">{{ $basicVars[$i] }}</td>
-                                        @foreach($linha as $j => $val)
+
+                                        {{-- exibir apenas as numCols colunas de variáveis + RHS --}}
+                                        @for($j = 0; $j < $numCols; $j++)
                                             @php
+                                                $val = $linha[$j] ?? 0;
                                                 $isPivot = $pivotRow !== null
                                                     && $pivotCol !== null
                                                     && $pivotRow == $i
@@ -143,19 +171,25 @@
                                             @endphp
 
                                             <td class="
-                                                                                    {{ $isPivot ? 'pivot-cell' : '' }}
-                                                                                    {{ $isPivotRow && !$isPivot ? 'pivot-row' : '' }}
-                                                                                    {{ $isPivotCol && !$isPivot ? 'pivot-col' : '' }}
-                                                                                ">
+                                                {{ $isPivot ? 'pivot-cell' : '' }}
+                                                {{ $isPivotRow && !$isPivot ? 'pivot-row' : '' }}
+                                                {{ $isPivotCol && !$isPivot ? 'pivot-col' : '' }}
+                                            ">
                                                 {{ number_format($val, 4, ',', '.') }}
                                             </td>
-                                        @endforeach
+                                        @endfor
+
+                                        {{-- RHS (última coluna) --}}
+                                        @php $rhs = $linha[$numCols] ?? 0; @endphp
+                                        <td class="">{{ number_format($rhs, 4, ',', '.') }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
                         </table>
+
                     @endforeach
                 @endif
+
             </div>
         </div>
     </div>

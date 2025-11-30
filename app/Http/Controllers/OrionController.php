@@ -79,6 +79,7 @@ class OrionController extends Controller
             ];
         }
 
+        //dd(compact('resultado', 'grafico', 'numVars'));
         return view('resultado', compact('resultado', 'grafico', 'numVars'));
     }
 

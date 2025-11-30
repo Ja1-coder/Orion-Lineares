@@ -8,27 +8,6 @@ class SimplexService
     private const MAX_ITER = 1000;
     private const EPS = 1e-9;
 
-    /**
-     * Resolver público — chama internamente as fases necessárias.
-     *
-     * @param string $tipo 'maximizar' | 'minimizar'
-     * @param array $objective array de coeficientes [c1, c2, ...]
-     * @param array $restricoes array de restrições no formato:
-     *      [
-     *         ['coefs' => [a1,a2,...], 'sinal' => '<='|'>='|'=', 'rhs' => b],
-     *         ...
-     *      ]
-     * @param int $numVars número original de variáveis x1..xn
-     *
-     * @return array [
-     *    'status' => 'optimal'|'infeasible'|'unbounded'|'error',
-     *    'solution' => [x1,...,xn],
-     *    'value' => Zvalue|null,
-     *    'tableau_history' => [tableau0, tableau1, ...],
-     *    'var_names' => [...],
-     *    'messages' => [...]
-     * ]
-     */
     public function resolver(string $tipo, array $objective, array $restricoes, int $numVars): array
     {
         try {
@@ -59,20 +38,17 @@ class SimplexService
             if (!empty($artificialIndexes)) {
                 $messages[] = 'Artificiais detectadas: executando Fase 1 (remover artificiais).';
 
-                // construir objetivo Fase1 = minimizar soma(a) -> internamente maximizar -sum(a)
-                $phase1Obj = array_fill(0, count($tableau[0]) - 1, 0.0);
-                foreach ($artificialIndexes as $idx) $phase1Obj[$idx] = -1.0;
-                $phase1Obj[] = 0.0;
-
-                // ajustar última linha para Phase1 (somando linhas com artificiais básicas)
-                $tableau[count($tableau) - 1] = $this->computePhase1ObjectiveRow($tableau, $phase1Obj, $artificialIndexes);
+                // construir objetivo Phase1 corretamente: zeros e -1 nas colunas artificiais
+                $tableau[count($tableau) - 1] = $this->createPhase1ObjectiveRow($tableau, $artificialIndexes);
                 $history[] = $this->copyTableau($tableau);
 
-                // run simplex core (maximização) for phase1
-                [$status1, $tableau, $iterHist1] = $this->runSimplexCore($tableau);
+                // run simplex core (maximização) for phase1, bloqueando artificiais como entrantes
+                [$status1, $tableau, $iterHist1] = $this->runSimplexCore($tableau, $artificialIndexes);
                 foreach ($iterHist1 as $t) $history[] = $t;
 
                 if ($status1 === 'unbounded') {
+                    // more debug info in messages: attach tableau snapshot and var names
+                    $messages[] = 'Phase 1: unbounded';
                     return $this->formatResult('unbounded', [], null, $history, $varNames, array_merge($messages, ['Phase 1: unbounded']));
                 }
 
@@ -82,7 +58,7 @@ class SimplexService
                     return $this->formatResult('infeasible', [], null, $history, $varNames, array_merge($messages, ['Phase 1: problem infeasible (sum of artificials != 0)']));
                 }
 
-                // remove artificial columns
+                // remove artificial columns (with pivot-out se necessário)
                 [$tableau, $varNames] = $this->removeArtificialVariablesFromTableau($tableau, $varNames, $artificialIndexes);
                 $history[] = $this->copyTableau($tableau);
 
@@ -230,8 +206,30 @@ class SimplexService
     }
 
     /**
+     * Create initial phase1 objective row: zeros and -1 for artificial columns,
+     * then adjust by adding cB * constraint rows (computePhase1ObjectiveRow will do this).
+     */
+    private function createPhase1ObjectiveRow(array $tableau, array $artificialIndexes): array
+    {
+        $numCols = count($tableau[0]);
+        // start with zeros
+        $phase1Obj = array_fill(0, $numCols, 0.0);
+
+        // set -1 for artificial columns (RHS included as last col, left 0)
+        foreach ($artificialIndexes as $col) {
+            if ($col >= 0 && $col < $numCols) $phase1Obj[$col] = -1.0;
+        }
+
+        // let computePhase1ObjectiveRow incorporate constraint rows correctly
+        return $this->computePhase1ObjectiveRow($tableau, $phase1Obj, $artificialIndexes);
+    }
+
+    /**
      * Compute initial phase1 objective row by adding rows where artificials appear.
      * phase1Obj contains -1 at artificial indexes (we maximize -sum(a)).
+     *
+     * CORRIGIDO: somente iterar linhas de restrição (excluindo a última linha)
+     * e usar cB * row (onde cB vem de phase1Obj) ao somar — isto garante o sinal correto.
      */
     private function computePhase1ObjectiveRow(array $tableau, array $phase1Obj, array $artificialIndexes): array
     {
@@ -239,11 +237,19 @@ class SimplexService
         $numCols = count($tableau[0]);
         while (count($row) < $numCols) $row[] = 0.0;
 
+        $m = count($tableau) - 1; // only constraint rows, exclude last row (objective)
+
         foreach ($artificialIndexes as $colIndex) {
-            foreach ($tableau as $i => $r) {
+            // cB is the cost of the artificial in the phase1 objective (should be -1)
+            $cB = $row[$colIndex] ?? 0.0; // phase1Obj already placed -1 at artificial indices
+            if (abs($cB) < self::EPS) continue;
+
+            for ($i = 0; $i < $m; $i++) {
+                $r = $tableau[$i];
                 if (isset($r[$colIndex]) && abs($r[$colIndex] - 1.0) < self::EPS) {
+                    // add cB * constraint row to the objective row
                     for ($k = 0; $k < $numCols; $k++) {
-                        $row[$k] += floatval($r[$k]);
+                        $row[$k] += $cB * floatval($r[$k]);
                     }
                     break;
                 }
@@ -256,12 +262,17 @@ class SimplexService
     /**
      * Runs the simplex core (maximization). Returns [status, finalTableau, historyOfIterations]
      * status: 'optimal' or 'unbounded'
+     *
+     * $artificialIndexes (optional): when non-empty, we are in Phase 1 and must not allow
+     * artificial columns to be chosen as entering variables.
      */
-    private function runSimplexCore(array $tableau): array
+    private function runSimplexCore(array $tableau, array $artificialIndexes = []): array
     {
         $history = [];
         $numRows = count($tableau);
         $numCols = count($tableau[0]);
+
+        $inPhase1 = !empty($artificialIndexes);
 
         $iter = 0;
         while (true) {
@@ -273,11 +284,15 @@ class SimplexService
 
             // ---------------------
             // Find entering column (most negative coefficient in objective row)
+            // Skip artificial columns if in Phase 1
             // ---------------------
             $lastRow = $tableau[$numRows - 1];
             $enterCol = null;
             $minVal = 0.0;
             for ($j = 0; $j < $numCols - 1; $j++) {
+                // if in phase1, skip artificial columns
+                if ($inPhase1 && in_array($j, $artificialIndexes, true)) continue;
+
                 $v = $lastRow[$j];
                 if ($v < $minVal - self::EPS) {
                     $minVal = $v;
@@ -379,16 +394,60 @@ class SimplexService
 
     /**
      * Remove artificial columns from tableau and varNames.
+     *
+     * CORRIGIDO: antes de remover, se a artificial for básica em alguma linha,
+     * tenta pivotear com uma coluna não-artificial nessa linha.
      */
     private function removeArtificialVariablesFromTableau(array $tableau, array $varNames, array $artificialIndexes): array
     {
+        // iterate artificials from largest index to smallest so splicing keeps indices valid
         rsort($artificialIndexes);
-        foreach ($artificialIndexes as $col) {
-            foreach ($tableau as $i => &$row) {
-                array_splice($row, $col, 1);
+
+        $numRows = count($tableau);
+        $numCols = count($tableau[0]);
+
+        foreach ($artificialIndexes as $artCol) {
+            // find if this column is basic in some constraint row
+            $basicRow = null;
+            for ($i = 0; $i < $numRows - 1; $i++) {
+                if (abs($tableau[$i][$artCol] - 1.0) < self::EPS) {
+                    // ensure other rows have zero in this column
+                    $isBasic = true;
+                    for ($r = 0; $r < $numRows - 1; $r++) {
+                        if ($r === $i) continue;
+                        if (abs($tableau[$r][$artCol]) > self::EPS) { $isBasic = false; break; }
+                    }
+                    if ($isBasic) { $basicRow = $i; break; }
+                }
             }
-            array_splice($varNames, $col, 1);
+
+            if ($basicRow !== null) {
+                // try to find a non-artificial column in this row to pivot in
+                $pivotFound = false;
+                for ($j = 0; $j < $numCols - 1; $j++) {
+                    if (in_array($j, $artificialIndexes, true)) continue; // skip artificiais
+                    if (abs($tableau[$basicRow][$j]) > self::EPS) {
+                        // pivot to replace artificial by column j
+                        $tableau = $this->pivotOperation($tableau, $basicRow, $j);
+                        $pivotFound = true;
+                        break;
+                    }
+                }
+
+                // if pivot not found, the row is likely all zeros except artificial:
+                // we'll still remove the artificial column; the row remains (RHS should be zero)
+            }
+
+            // after ensuring the artificial is not basic pivot-wise, remove the column
+            foreach ($tableau as $ri => &$row) {
+                array_splice($row, $artCol, 1);
+            }
+            array_splice($varNames, $artCol, 1);
+
+            // update numCols after splice
+            $numCols = count($tableau[0]);
         }
+
         return [$tableau, $varNames];
     }
 

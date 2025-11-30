@@ -109,12 +109,6 @@
                     </div>
 
                     <div class="text-center pt-3">
-                        <button type="button" class="btn btn-add-restricao">
-                            <i class="fa-solid fa-plus me-2"></i>Adicionar Restrição
-                        </button>
-                    </div>
-
-                    <div class="text-center pt-3">
                         <button type="submit" class="btn btn-orion">Resolver</button>
                     </div>
 
