@@ -47,7 +47,7 @@
                     <div class="text-center mt-3">
                         <span class="badge bg-danger me-2">● Ponto Ótimo</span>
                         <span class="badge me-2" style="background-color: #28a745; color: white; border: 3px solid #28a745; opacity: 0.8;">-- Curva de Nível Ótima (Z)</span>
-                        <span class="text-muted small d-block mt-1">* A área sombreada é a Região de Viabilidade.</span>
+                        <span class="text-muted small d-block mt-1">* Linhas sólidas representam as restrições. A linha tracejada representa a direção de crescimento de Z.</span>
                     </div>
                 </div>
             @endif
@@ -223,126 +223,95 @@
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1"></script>
+    {{-- Script do Chart.js via CDN --}}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-@if(isset($numVars) && $numVars == 2 && !empty($grafico))
-<script>
-document.addEventListener('DOMContentLoaded', function () {
+    @if(isset($numVars) && $numVars == 2 && !empty($grafico))
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const ctx = document.getElementById('graficoSimplex').getContext('2d');
+                const dados = @json($grafico);
+                const datasets = [];
 
-    const ctx = document.getElementById('graficoSimplex').getContext('2d');
-    const dados = @json($grafico);
-    const datasets = [];
+                // 1. Plotar Restrições
+                dados.restricoes.forEach((res, index) => {
+                    const hue = (index * 137.5) % 360;
+                    datasets.push({
+                        label: res.label,
+                        data: res.coords,
+                        borderColor: `hsl(${hue}, 70%, 50%)`,
+                        backgroundColor: `hsla(${hue}, 70%, 50%, 0.1)`,
+                        borderWidth: 2,
+                        showLine: true,
+                        fill: false,
+                        tension: 0,
+                        pointRadius: 0
+                    });
+                });
 
-    const axisLimit = dados.max_limit;
-    const EPS = 1e-6;
+                // 2. Plotar Ponto Ótimo
+                let pOtimo = null;
+                if (dados.ponto_otimo) {
+                    pOtimo = dados.ponto_otimo;
+                    datasets.push({
+                        label: 'Solução Ótima',
+                        data: [pOtimo],
+                        backgroundColor: '#dc3545',
+                        borderColor: '#dc3545',
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        type: 'scatter'
+                    });
+                }
 
-    let pOtimo = dados.ponto_otimo ?? null;
+                // 3. Plotar Curva de Nível (Linha Verde)
+                if (pOtimo && dados.z_coefs) {
+                    const c1 = dados.z_coefs[0];
+                    const c2 = dados.z_coefs[1];
+                    const Zmax = c1 * pOtimo.x + c2 * pOtimo.y;
+                    
+                    const ptsZ = [];
+                    const limit = Math.max(pOtimo.x, pOtimo.y) * 2 + 5; // Limite visual
 
-    // ============================
-    // 1. Linhas das Restrições
-    // ============================
-    dados.restricoes.forEach((res, index) => {
+                    if (Math.abs(c2) > 0.001) {
+                        // Calcula pontos onde a reta Z corta os limites
+                        ptsZ.push({ x: 0, y: Zmax/c2 });
+                        ptsZ.push({ x: limit, y: (Zmax - c1*limit)/c2 });
+                    } else {
+                        // Reta vertical se c2 for 0
+                        ptsZ.push({ x: pOtimo.x, y: 0 });
+                        ptsZ.push({ x: pOtimo.x, y: limit });
+                    }
 
-        // Remover não-negatividade
-        if (res.label === "X1 >= 0" || res.label === "X2 >= 0") return;
+                    datasets.push({
+                        label: 'Função Objetivo (Z)',
+                        data: ptsZ,
+                        borderColor: '#28a745',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        showLine: true,
+                        fill: false
+                    });
+                }
 
-        const hue = (index * 137.5) % 360;
-
-        datasets.push({
-            label: res.label,
-            data: res.coords,
-            borderColor: `hsl(${hue}, 70%, 50%)`,
-            backgroundColor: `hsla(${hue}, 70%, 50%, 0.15)`,
-            borderWidth: 2,
-            tension: 0,
-            pointRadius: 0,
-            showLine: true,
-        });
-    });
-
-    // ============================
-    // 2. Curva de nível Z
-    // ============================
-    if (dados.Z_otimo !== undefined && dados.z_coefs) {
-
-        const c1 = dados.z_coefs[0];
-        const c2 = dados.z_coefs[1];
-        const Z = dados.Z_otimo;
-
-        let ptsZ = [];
-
-        if (Math.abs(c2) > EPS) {
-            ptsZ.push({ x: 0, y: Z / c2 });
-            ptsZ.push({ x: axisLimit, y: (Z - c1 * axisLimit) / c2 });
-        } else if (Math.abs(c1) > EPS) {
-            const xVal = Z / c1;
-            ptsZ.push({ x: xVal, y: 0 });
-            ptsZ.push({ x: xVal, y: axisLimit });
-        }
-
-        datasets.push({
-            label: `Curva Z = ${Z.toFixed(2)}`,
-            data: ptsZ.filter(v => v.x >= 0 && v.y >= 0),
-            borderColor: "#28a745",
-            borderWidth: 3,
-            borderDash: [6,4],
-            pointRadius: 0,
-            tension: 0,
-            showLine: true
-        });
-    }
-
-    // ============================
-    // 3. Ponto Ótimo (plotado por cima)
-    // ============================
-    if (pOtimo) {
-        datasets.push({
-            label: "Solução ótima",
-            data: [pOtimo],
-            pointRadius: 8,
-            backgroundColor: "#dc3545",
-            borderColor: "white",
-            type: "scatter"
-        });
-    }
-
-    // ============================
-    // 4. Região Viável (POLÍGONO)
-    // ============================
-    const annotations = [];
-
-    if (dados.regiao_viavel && dados.regiao_viavel.length >= 3) {
-        annotations.push({
-            type: "polygon",
-            backgroundColor: "rgba(0, 200, 255, 0.20)",
-            borderColor: "rgba(0, 120, 200, 0.9)",
-            borderWidth: 2,
-            points: dados.regiao_viavel.map(v => ({ x: v.x, y: v.y }))
-        });
-    }
-
-    // ============================
-    // 5. Criar gráfico
-    // ============================
-    new Chart(ctx, {
-        type: "scatter",
-        data: { datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: { min: 0, max: axisLimit, title: { display: true, text: "X1" } },
-                y: { min: 0, max: axisLimit, title: { display: true, text: "X2" } }
-            },
-            plugins: {
-                legend: { position: "top" },
-                annotation: { annotations }
-            }
-        }
-    });
-
-});
-</script>
-@endif
+                // Renderizar Gráfico
+                new Chart(ctx, {
+                    type: 'scatter',
+                    data: { datasets: datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { type: 'linear', position: 'bottom', title: {display:true, text:'X1'}, min: 0 },
+                            y: { type: 'linear', title: {display:true, text:'X2'}, min: 0 }
+                        },
+                        plugins: {
+                            legend: { position: 'bottom' }
+                        }
+                    }
+                });
+            });
+        </script>
+    @endif
 @endpush

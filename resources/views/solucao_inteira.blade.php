@@ -16,8 +16,8 @@
             </div>
         </a>
 
-        <a href="{{ url()->previous() }}" class="btn-back">
-            <i class="fa-solid fa-arrow-left"></i> Voltar para Resultado
+        <a href="{{ route('orion.definition') }}" class="btn-back">
+            <i class="fa-solid fa-arrow-left"></i> Voltar para Definição
         </a>
     </nav>
 @endsection
