@@ -36,6 +36,22 @@
 
         <div class="col-12 col-md-11 col-lg-10">
 
+            {{-- Seção de mensagens gerais --}}
+            @if(!empty($mensagens))
+                <div class="mb-4">
+                    @foreach($mensagens as $msg)
+                        @php
+                            $tipo = $msg['type'] ?? 'info'; // 'success', 'warning', 'danger', 'info'
+                            $texto = $msg['text'] ?? $msg;
+                        @endphp
+                        <div class="alert alert-{{ $tipo }} py-2">
+                            <i class="fa-solid fa-{{ $tipo == 'success' ? 'check-circle' : ($tipo == 'warning' ? 'triangle-exclamation' : 'info-circle') }} me-1"></i>
+                            {{ $texto }}
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
             @if(isset($numVars) && $numVars == 2 && !empty($grafico))
                 <div class="card card-light p-3 p-md-4 mb-4">
                     <h4 class="solution-title"><i class="fa-solid fa-chart-line me-2"></i>Visualização Gráfica (2 Variáveis)</h4>
@@ -223,7 +239,6 @@
 @endsection
 
 @push('scripts')
-    {{-- Script do Chart.js via CDN --}}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     @if(isset($numVars) && $numVars == 2 && !empty($grafico))
@@ -233,7 +248,6 @@
                 const dados = @json($grafico);
                 const datasets = [];
 
-                // 1. Plotar Restrições
                 dados.restricoes.forEach((res, index) => {
                     const hue = (index * 137.5) % 360;
                     datasets.push({
@@ -249,10 +263,23 @@
                     });
                 });
 
-                // 2. Plotar Ponto Ótimo
                 let pOtimo = null;
-                if (dados.ponto_otimo) {
-                    pOtimo = dados.ponto_otimo;
+                // 2. Plotar Linha de Soluções Ótimas (quando múltiplas soluções)
+                if (dados.solucao_otima && dados.solucao_otima.length > 1) {
+                    datasets.push({
+                        label: 'Soluções Ótimas',
+                        data: dados.solucao_otima,
+                        backgroundColor: '#dc3545',
+                        borderColor: '#dc3545',
+                        borderWidth: 2,
+                        showLine: true,
+                        fill: false,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        tension: 0
+                    });
+                } else if (dados.ponto_otimo) {
+                    const pOtimo = dados.ponto_otimo;
                     datasets.push({
                         label: 'Solução Ótima',
                         data: [pOtimo],
@@ -264,21 +291,18 @@
                     });
                 }
 
-                // 3. Plotar Curva de Nível (Linha Verde)
+
                 if (pOtimo && dados.z_coefs) {
                     const c1 = dados.z_coefs[0];
                     const c2 = dados.z_coefs[1];
                     const Zmax = c1 * pOtimo.x + c2 * pOtimo.y;
-                    
                     const ptsZ = [];
-                    const limit = Math.max(pOtimo.x, pOtimo.y) * 2 + 5; // Limite visual
+                    const limit = Math.max(pOtimo.x, pOtimo.y) * 2 + 5;
 
                     if (Math.abs(c2) > 0.001) {
-                        // Calcula pontos onde a reta Z corta os limites
                         ptsZ.push({ x: 0, y: Zmax/c2 });
                         ptsZ.push({ x: limit, y: (Zmax - c1*limit)/c2 });
                     } else {
-                        // Reta vertical se c2 for 0
                         ptsZ.push({ x: pOtimo.x, y: 0 });
                         ptsZ.push({ x: pOtimo.x, y: limit });
                     }
@@ -295,7 +319,6 @@
                     });
                 }
 
-                // Renderizar Gráfico
                 new Chart(ctx, {
                     type: 'scatter',
                     data: { datasets: datasets },
