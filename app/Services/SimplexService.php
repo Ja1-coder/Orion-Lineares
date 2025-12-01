@@ -4,7 +4,6 @@ namespace App\Services;
 
 class SimplexService
 {
-    // máximo de iterações por fase para evitar loops infinitos
     private const MAX_ITER = 1000;
     private const EPS = 1e-9;
 
@@ -12,8 +11,6 @@ class SimplexService
     {
         try {
             $messages = [];
-
-            // 1) Normalizar tipo: trabalhamos internamente com MAXIMIZAÇÃO
             $isMin = $this->isMinimization($tipo);
             $c = array_map(fn($v) => floatval($v), $objective);
             if ($isMin) {
@@ -21,7 +18,6 @@ class SimplexService
                 $messages[] = 'Minimização detectada: objetivo convertido (multiplicado por -1) para resolver pela forma de maximização.';
             }
 
-            // 2) Converter para forma padrão (adicionar s/e/a)
             $std = $this->toStandardForm($c, $restricoes);
             $A = $std['A'];
             $b = $std['b'];
@@ -29,16 +25,13 @@ class SimplexService
             $varNames = $std['var_names'];
             $artificialIndexes = $std['artificial_indexes'];
 
-            // 3) Montar tableau inicial
             $tableau = $this->buildTableau($A, $b, $c_extended);
             $history = [];
             $history[] = $this->copyTableau($tableau);
 
-            // 4) Se houver artificiais, rodar Fase 1
             if (!empty($artificialIndexes)) {
                 $messages[] = 'Artificiais detectadas: executando Fase 1 (remover artificiais).';
 
-                // construir objetivo Phase1 corretamente: zeros e -1 nas colunas artificiais
                 $tableau[count($tableau) - 1] = $this->createPhase1ObjectiveRow($tableau, $artificialIndexes);
                 $history[] = $this->copyTableau($tableau);
 

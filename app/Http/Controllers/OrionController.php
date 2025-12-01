@@ -87,26 +87,42 @@ class OrionController extends Controller
 
     private function gerarDadosGrafico($restricoes, $zCoefs)
     {
+        // 1. Calcular o limite máximo dos eixos (Zoom Dinâmico)
+        $maxIntercept = 0;
+        foreach ($restricoes as $res) {
+            $a = floatval($res['coefs'][0]);
+            $b = floatval($res['coefs'][1]);
+            $c = floatval($res['rhs']);
+            
+            // Verifica onde a linha corta os eixos X e Y
+            if ($a > 0.0001) $maxIntercept = max($maxIntercept, $c / $a);
+            if ($b > 0.0001) $maxIntercept = max($maxIntercept, $c / $b);
+        }
+
+        // Se não achou nada (tudo zero), define 10. Se achou, adiciona 10% de folga.
+        $limit = ($maxIntercept > 0) ? $maxIntercept * 1.1 : 10;
+
         $linhas = [];
 
         foreach ($restricoes as $i => $res) {
             $a = floatval($res['coefs'][0]);
             $b = floatval($res['coefs'][1]);
             $c = floatval($res['rhs']);
-            $sinal = $res['sinal']; // Importante para saber a direção (opcional, mas bom ter)
-
+            
             $pontos = [];
 
             // Pontos de interceptação (Eixos)
-            if ($b != 0) $pontos[] = ['x' => 0, 'y' => $c / $b];
-            if ($a != 0) $pontos[] = ['x' => $c / $a, 'y' => 0];
+            if (abs($b) > 0.0001) $pontos[] = ['x' => 0, 'y' => $c / $b];
+            if (abs($a) > 0.0001) $pontos[] = ['x' => $c / $a, 'y' => 0];
 
-            // Tratamento para linhas horizontais/verticais puras ou passando pela origem
+            // Tratamento para linhas horizontais/verticais que precisam esticar até o limite
             if (count($pontos) < 2) {
-                if ($b == 0 && $a != 0) { // Vertical x = c/a
-                    $pontos = [['x' => $c/$a, 'y' => 0], ['x' => $c/$a, 'y' => 100]];
-                } elseif ($a == 0 && $b != 0) { // Horizontal y = c/b
-                    $pontos = [['x' => 0, 'y' => $c/$b], ['x' => 100, 'y' => $c/$b]];
+                if (abs($b) < 0.0001 && abs($a) > 0.0001) { 
+                    // Vertical x = c/a. Desenha de y=0 até y=Limit
+                    $pontos = [['x' => $c/$a, 'y' => 0], ['x' => $c/$a, 'y' => $limit]];
+                } elseif (abs($a) < 0.0001 && abs($b) > 0.0001) { 
+                    // Horizontal y = c/b. Desenha de x=0 até x=Limit
+                    $pontos = [['x' => 0, 'y' => $c/$b], ['x' => $limit, 'y' => $c/$b]];
                 }
             }
 
@@ -125,7 +141,8 @@ class OrionController extends Controller
 
         return [
             'restricoes' => $linhas,
-            'z_coefs' => $zCoefs // Enviando para desenhar a curva de nível
+            'z_coefs' => $zCoefs,
+            'max_limit' => $limit // Envia o limite calculado para o Front-end
         ];
     }
 }

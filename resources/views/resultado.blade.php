@@ -36,12 +36,10 @@
 
         <div class="col-12 col-md-11 col-lg-10">
 
-            {{-- 1. ÁREA DO GRÁFICO (Canvas) --}}
             @if(isset($numVars) && $numVars == 2 && !empty($grafico))
                 <div class="card card-light p-3 p-md-4 mb-4">
                     <h4 class="solution-title"><i class="fa-solid fa-chart-line me-2"></i>Visualização Gráfica</h4>
                     
-                    {{-- O Canvas PRECISA estar aqui para o gráfico aparecer --}}
                     <div style="position: relative; height: 400px; width: 100%;">
                         <canvas id="graficoSimplex"></canvas>
                     </div>
@@ -71,7 +69,6 @@
                                 Z = <span class="solution-optimal-value">{{ number_format($resultado['value'], 4, ',', '.') }}</span>
                             </div>
                             
-                            {{-- Aviso de Solução Inteira (Bonificação) --}}
                             @php
                                 $isInteger = true;
                                 foreach($resultado['solution'] as $val) {
@@ -115,10 +112,9 @@
                     </div>
                 </div>
             </div>
-
-            {{-- 4. Histórico de Iterações (Lógica do João) --}}
+                            
             @if(!empty($resultado['tableau_history']))
-            <div class="card card-light p-3 p-md-4">
+            <div class="card card-light p-3 p-md-4 mt-4">
                 <h4 class="solution-title mb-4">Histórico de Iterações</h4>
                 
                 @foreach($resultado['tableau_history'] as $k => $step)
@@ -128,13 +124,11 @@
                         $pivotCol = $step['pivot_col'] ?? null;
                         $numCols = isset($tableau[0]) ? count($tableau[0]) - 1 : 0;
                         
-                        // Preparar nomes das variáveis
                         $displayVarNames = $resultado['var_names'];
                         if (count($displayVarNames) < $numCols) {
                             for ($i = count($displayVarNames); $i < $numCols; $i++) $displayVarNames[] = 'v' . ($i + 1);
                         }
                         
-                        // Detectar Variáveis Básicas
                         $basicVars = [];
                         foreach ($tableau as $rowIndex => $row) {
                             $found = false;
@@ -189,7 +183,6 @@
         </div>
     </div>
 
-    {{-- CSS Styles --}}
     <style>
         .table-simplex { border-collapse: separate; border-spacing: 0; width: 100%; margin-bottom: 30px; font-size: 14px; border-radius: 6px; overflow: hidden; }
         .table-simplex .iteration-header { background: var(--orion-cabecalho-tabela); color: white; padding: 6px; border: 1px solid var(--orion-linhas-tabela); text-align: center; font-size: 0.9rem; }
@@ -211,7 +204,6 @@
 @endsection
 
 @push('scripts')
-    {{-- Script do Chart.js via CDN --}}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     @if(isset($numVars) && $numVars == 2 && !empty($grafico))
@@ -221,7 +213,6 @@
                 const dados = @json($grafico);
                 const datasets = [];
 
-                // 1. Plotar Restrições
                 dados.restricoes.forEach((res, index) => {
                     const hue = (index * 137.5) % 360;
                     datasets.push({
@@ -237,7 +228,6 @@
                     });
                 });
 
-                // 2. Plotar Ponto Ótimo
                 let pOtimo = null;
                 if (dados.ponto_otimo) {
                     pOtimo = dados.ponto_otimo;
@@ -252,21 +242,18 @@
                     });
                 }
 
-                // 3. Plotar Curva de Nível (Linha Verde)
                 if (pOtimo && dados.z_coefs) {
                     const c1 = dados.z_coefs[0];
                     const c2 = dados.z_coefs[1];
                     const Zmax = c1 * pOtimo.x + c2 * pOtimo.y;
                     
                     const ptsZ = [];
-                    const limit = Math.max(pOtimo.x, pOtimo.y) * 2 + 5; // Limite visual
+                    const limit = Math.max(pOtimo.x, pOtimo.y) * 2 + 5;
 
                     if (Math.abs(c2) > 0.001) {
-                        // Calcula pontos onde a reta Z corta os limites
                         ptsZ.push({ x: 0, y: Zmax/c2 });
                         ptsZ.push({ x: limit, y: (Zmax - c1*limit)/c2 });
                     } else {
-                        // Reta vertical se c2 for 0
                         ptsZ.push({ x: pOtimo.x, y: 0 });
                         ptsZ.push({ x: pOtimo.x, y: limit });
                     }
@@ -283,7 +270,6 @@
                     });
                 }
 
-                // Renderizar Gráfico
                 new Chart(ctx, {
                     type: 'scatter',
                     data: { datasets: datasets },
