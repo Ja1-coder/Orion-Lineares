@@ -12,3 +12,6 @@ Route::post('/gerar-tabela', [OrionController::class, 'generateTable'])->name('o
 Route::get('/entrada/{vars}/{rests}', [OrionController::class, 'showInputTable'])->name('orion.input.table');
 
 Route::post('/resolver', [OrionController::class, 'solve'])->name('orion.solve');
+
+Route::get('/orion/solucao-inteira', [OrionController::class, 'solucaoInteira'])->name('orion.solucao_inteira');
+

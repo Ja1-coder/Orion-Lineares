@@ -38,7 +38,7 @@
 
             @if(isset($numVars) && $numVars == 2 && !empty($grafico))
                 <div class="card card-light p-3 p-md-4 mb-4">
-                    <h4 class="solution-title"><i class="fa-solid fa-chart-line me-2"></i>Visualização Gráfica</h4>
+                    <h4 class="solution-title"><i class="fa-solid fa-chart-line me-2"></i>Visualização Gráfica (2 Variáveis)</h4>
                     
                     <div style="position: relative; height: 400px; width: 100%;">
                         <canvas id="graficoSimplex"></canvas>
@@ -46,8 +46,8 @@
 
                     <div class="text-center mt-3">
                         <span class="badge bg-danger me-2">● Ponto Ótimo</span>
-                        <span class="badge me-2" style="background-color: #28a745; color: white; border: 1px dashed white;">-- Função Objetivo (Z)</span>
-                        <span class="text-muted small d-block mt-1">* Linhas sólidas representam as restrições. A linha tracejada verde indica a direção de crescimento de Z.</span>
+                        <span class="badge me-2" style="background-color: #28a745; color: white; border: 3px solid #28a745; opacity: 0.8;">-- Curva de Nível Ótima (Z)</span>
+                        <span class="text-muted small d-block mt-1">* A área sombreada é a Região de Viabilidade.</span>
                     </div>
                 </div>
             @endif
@@ -57,6 +57,14 @@
                     <div class="card card-light p-3 mb-4 h-100">
                         <div class="solution-box h-100">
                             <h2 class="solution-title">Solução Primal (Ótima)</h2>
+                            
+                            @if($resultado['multiple_solutions'] ?? false)
+                                <div class="alert alert-info mt-3 py-2">
+                                    <i class="fa-solid fa-lightbulb me-1"></i> **Solução Múltipla Detectada.**
+                                    <small class="d-block" style="font-size: 0.75rem; opacity: 0.9;">Existem infinitas soluções ao longo de uma aresta da região viável.</small>
+                                </div>
+                            @endif
+
                             <ul class="solution-list">
                                 @foreach($resultado['solution'] as $i => $valor)
                                     <li>
@@ -78,12 +86,19 @@
                             
                             @if($isInteger)
                                 <div class="alert alert-success mt-3 py-2">
-                                    <i class="fa-solid fa-check-circle me-1"></i> Solução Inteira Encontrada!
+                                    <i class="fa-solid fa-check-circle me-1"></i> Solução Inteira Naturalmente Encontrada!
                                 </div>
                             @else
                                 <div class="alert alert-warning mt-3 py-2">
                                     <i class="fa-solid fa-info-circle me-1"></i> Solução não é inteira.
                                     <small class="d-block" style="font-size: 0.75rem; opacity: 0.8;">Para garantir inteiros, seria necessário aplicar métodos como Branch & Bound.</small>
+                                </div>
+                                <div class="text-center mt-3">
+                                    <a href="{{ route('orion.solucao_inteira') }}"
+                                    class="btn btn-orion"
+                                    style="font-weight:600; padding:10px 18px; display:inline-block;">
+                                        Ver Solução Inteira (Branch & Bound)
+                                    </a>
                                 </div>
                             @endif
                         </div>
@@ -94,7 +109,7 @@
                     <div class="card card-light p-3 mb-4 h-100">
                         <div class="solution-box h-100" style="border-left-color: #ff9800;">
                             <h2 class="solution-title" style="color: #e65100;">Análise de Sensibilidade (Dual)</h2>
-                            <p class="text-muted small mb-3">Preços Sombra indicam o valor marginal de cada recurso.</p>
+                            <p class="text-muted small mb-3">Preços Sombra (y) indicam o valor marginal de cada recurso.</p>
                             
                             @if(isset($resultado['dual_solution']) && !empty($resultado['dual_solution']))
                                 <ul class="solution-list">
@@ -112,10 +127,10 @@
                     </div>
                 </div>
             </div>
-                            
+                                
             @if(!empty($resultado['tableau_history']))
             <div class="card card-light p-3 p-md-4 mt-4">
-                <h4 class="solution-title mb-4">Histórico de Iterações</h4>
+                <h4 class="solution-title mb-4">Histórico de Iterações (Forma Tabular)</h4>
                 
                 @foreach($resultado['tableau_history'] as $k => $step)
                     @php
@@ -133,12 +148,16 @@
                         foreach ($tableau as $rowIndex => $row) {
                             $found = false;
                             for ($col = 0; $col < $numCols; $col++) {
-                                $column = array_column($tableau, $col);
-                                $countOnes = 0; $countZeros = 0;
-                                foreach ($column as $v) { if (abs($v - 1) < 1e-6) $countOnes++; if (abs($v) < 1e-6) $countZeros++; }
-                                
-                                if ($countOnes === 1 && $countZeros === count($column) - 1 && abs($tableau[$rowIndex][$col] - 1) < 1e-6) {
-                                    $basicVars[$rowIndex] = $displayVarNames[$col] ?? 'col'.$col; $found = true; break;
+                                $isBasicCol = true;
+                                if (abs($row[$col] - 1) < 1e-6) {
+                                    for ($r=0; $r < count($tableau); $r++) {
+                                        if ($r !== $rowIndex && abs($tableau[$r][$col]) > 1e-6) {
+                                            $isBasicCol = false; break;
+                                        }
+                                    }
+                                    if ($isBasicCol) {
+                                        $basicVars[$rowIndex] = $displayVarNames[$col] ?? 'col'.$col; $found = true; break;
+                                    }
                                 }
                             }
                             if (!$found) $basicVars[$rowIndex] = ($rowIndex === count($tableau) - 1) ? 'Z' : '';
@@ -204,88 +223,126 @@
 @endsection
 
 @push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1"></script>
 
-    @if(isset($numVars) && $numVars == 2 && !empty($grafico))
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const ctx = document.getElementById('graficoSimplex').getContext('2d');
-                const dados = @json($grafico);
-                const datasets = [];
+@if(isset($numVars) && $numVars == 2 && !empty($grafico))
+<script>
+document.addEventListener('DOMContentLoaded', function () {
 
-                dados.restricoes.forEach((res, index) => {
-                    const hue = (index * 137.5) % 360;
-                    datasets.push({
-                        label: res.label,
-                        data: res.coords,
-                        borderColor: `hsl(${hue}, 70%, 50%)`,
-                        backgroundColor: `hsla(${hue}, 70%, 50%, 0.1)`,
-                        borderWidth: 2,
-                        showLine: true,
-                        fill: false,
-                        tension: 0,
-                        pointRadius: 0
-                    });
-                });
+    const ctx = document.getElementById('graficoSimplex').getContext('2d');
+    const dados = @json($grafico);
+    const datasets = [];
 
-                let pOtimo = null;
-                if (dados.ponto_otimo) {
-                    pOtimo = dados.ponto_otimo;
-                    datasets.push({
-                        label: 'Solução Ótima',
-                        data: [pOtimo],
-                        backgroundColor: '#dc3545',
-                        borderColor: '#dc3545',
-                        pointRadius: 6,
-                        pointHoverRadius: 8,
-                        type: 'scatter'
-                    });
-                }
+    const axisLimit = dados.max_limit;
+    const EPS = 1e-6;
 
-                if (pOtimo && dados.z_coefs) {
-                    const c1 = dados.z_coefs[0];
-                    const c2 = dados.z_coefs[1];
-                    const Zmax = c1 * pOtimo.x + c2 * pOtimo.y;
-                    
-                    const ptsZ = [];
-                    const limit = Math.max(pOtimo.x, pOtimo.y) * 2 + 5;
+    let pOtimo = dados.ponto_otimo ?? null;
 
-                    if (Math.abs(c2) > 0.001) {
-                        ptsZ.push({ x: 0, y: Zmax/c2 });
-                        ptsZ.push({ x: limit, y: (Zmax - c1*limit)/c2 });
-                    } else {
-                        ptsZ.push({ x: pOtimo.x, y: 0 });
-                        ptsZ.push({ x: pOtimo.x, y: limit });
-                    }
+    // ============================
+    // 1. Linhas das Restrições
+    // ============================
+    dados.restricoes.forEach((res, index) => {
 
-                    datasets.push({
-                        label: 'Função Objetivo (Z)',
-                        data: ptsZ,
-                        borderColor: '#28a745',
-                        borderWidth: 2,
-                        borderDash: [5, 5],
-                        pointRadius: 0,
-                        showLine: true,
-                        fill: false
-                    });
-                }
+        // Remover não-negatividade
+        if (res.label === "X1 >= 0" || res.label === "X2 >= 0") return;
 
-                new Chart(ctx, {
-                    type: 'scatter',
-                    data: { datasets: datasets },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: { type: 'linear', position: 'bottom', title: {display:true, text:'X1'}, min: 0 },
-                            y: { type: 'linear', title: {display:true, text:'X2'}, min: 0 }
-                        },
-                        plugins: {
-                            legend: { position: 'bottom' }
-                        }
-                    }
-                });
-            });
-        </script>
-    @endif
+        const hue = (index * 137.5) % 360;
+
+        datasets.push({
+            label: res.label,
+            data: res.coords,
+            borderColor: `hsl(${hue}, 70%, 50%)`,
+            backgroundColor: `hsla(${hue}, 70%, 50%, 0.15)`,
+            borderWidth: 2,
+            tension: 0,
+            pointRadius: 0,
+            showLine: true,
+        });
+    });
+
+    // ============================
+    // 2. Curva de nível Z
+    // ============================
+    if (dados.Z_otimo !== undefined && dados.z_coefs) {
+
+        const c1 = dados.z_coefs[0];
+        const c2 = dados.z_coefs[1];
+        const Z = dados.Z_otimo;
+
+        let ptsZ = [];
+
+        if (Math.abs(c2) > EPS) {
+            ptsZ.push({ x: 0, y: Z / c2 });
+            ptsZ.push({ x: axisLimit, y: (Z - c1 * axisLimit) / c2 });
+        } else if (Math.abs(c1) > EPS) {
+            const xVal = Z / c1;
+            ptsZ.push({ x: xVal, y: 0 });
+            ptsZ.push({ x: xVal, y: axisLimit });
+        }
+
+        datasets.push({
+            label: `Curva Z = ${Z.toFixed(2)}`,
+            data: ptsZ.filter(v => v.x >= 0 && v.y >= 0),
+            borderColor: "#28a745",
+            borderWidth: 3,
+            borderDash: [6,4],
+            pointRadius: 0,
+            tension: 0,
+            showLine: true
+        });
+    }
+
+    // ============================
+    // 3. Ponto Ótimo (plotado por cima)
+    // ============================
+    if (pOtimo) {
+        datasets.push({
+            label: "Solução ótima",
+            data: [pOtimo],
+            pointRadius: 8,
+            backgroundColor: "#dc3545",
+            borderColor: "white",
+            type: "scatter"
+        });
+    }
+
+    // ============================
+    // 4. Região Viável (POLÍGONO)
+    // ============================
+    const annotations = [];
+
+    if (dados.regiao_viavel && dados.regiao_viavel.length >= 3) {
+        annotations.push({
+            type: "polygon",
+            backgroundColor: "rgba(0, 200, 255, 0.20)",
+            borderColor: "rgba(0, 120, 200, 0.9)",
+            borderWidth: 2,
+            points: dados.regiao_viavel.map(v => ({ x: v.x, y: v.y }))
+        });
+    }
+
+    // ============================
+    // 5. Criar gráfico
+    // ============================
+    new Chart(ctx, {
+        type: "scatter",
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { min: 0, max: axisLimit, title: { display: true, text: "X1" } },
+                y: { min: 0, max: axisLimit, title: { display: true, text: "X2" } }
+            },
+            plugins: {
+                legend: { position: "top" },
+                annotation: { annotations }
+            }
+        }
+    });
+
+});
+</script>
+@endif
 @endpush
