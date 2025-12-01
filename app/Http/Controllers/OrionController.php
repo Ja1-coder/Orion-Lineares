@@ -223,8 +223,10 @@ public function solve(Request $request)
 
         $resultado = $this->simplex->resolver($tipo, $Z, $restricoes, $numVars);
 
+        // Todas as variáveis inteiras
         $inteiras = range(0, $numVars - 1);
 
+        // Executa Branch and Bound
         $solucaoInteira = $this->bb->branchAndBound(
             $tipo,
             $Z,
@@ -232,35 +234,44 @@ public function solve(Request $request)
             $inteiras
         );
 
-        if ($solucaoInteira['status'] === 'ok' && isset($solucaoInteira['solution'])) {
-            $solucaoOriginal = $solucaoInteira['solution'];
+        // Formata a solução final para chave-nome
+        if (isset($solucaoInteira['solution'])) {
             $solucaoFinal = [];
             foreach ($nomesVars as $i => $nomeVar) {
-                $solucaoFinal[$nomeVar] = $solucaoOriginal[$i] ?? 0;
+                $solucaoFinal[$nomeVar] = $solucaoInteira['solution'][$i] ?? 0;
             }
             $solucaoInteira['solution'] = $solucaoFinal;
         }
 
+        // Gráfico (somente se 2 variáveis)
         $grafico = [];
         if ($numVars == 2) {
             $grafico = $this->gerarDadosGrafico($restricoes, $Z);
 
-            if ($solucaoInteira['status'] === 'ok') {
+            if (isset($solucaoInteira['solution'])) {
                 $grafico['ponto_otimo'] = [
                     'x' => $solucaoInteira['solution']['x1'] ?? 0,
                     'y' => $solucaoInteira['solution']['x2'] ?? 0
                 ];
-                $grafico['Z_otimo'] = $solucaoInteira['value'];
+                $grafico['Z_otimo'] = $solucaoInteira['value'] ?? null;
             }
         }
 
+        // Mensagens do Simplex
         $mensagens = $resultado['messages'] ?? [];
+
+        // Passa a tabela de Branch and Bound (history) para a view
+        $tabelaBB = $solucaoInteira['history'] ?? [];
+
+        //dd($tabelaBB);
 
         return view('solucao_inteira', [
             'resultado' => $resultado,
             'solucaoInteira' => $solucaoInteira,
             'grafico' => $grafico,
             'mensagens' => $mensagens,
+            'tabelaBB' => $tabelaBB, // <- aqui está a tabela
         ]);
     }
+
 }

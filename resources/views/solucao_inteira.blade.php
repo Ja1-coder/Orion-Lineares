@@ -71,6 +71,82 @@
             </div>
         @endif
 
+        {{-- ===================== --}}
+        {{--  TABELA DE BRANCH & BOUND --}}
+        {{-- ===================== --}}
+        @if(isset($tabelaBB) && count($tabelaBB) > 0)
+        <div class="card card-light p-4 mt-4">
+            <h4 class="text-center mb-3" style="font-weight:600; color: var(--orion-azul-escuro);">
+                Histórico Branch & Bound
+            </h4>
+
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle text-center" style="border-radius:8px; overflow:hidden;">
+                    <thead style="background-color: var(--orion-cabecalho-tabela); color:white;">
+                        <tr>
+                            <th>Nó</th>
+                            <th>Solução</th>
+                            <th>Z</th>
+                            <th>Status</th>
+                            <th>Decisão</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($tabelaBB as $row)
+                        <tr>
+                            <td style="font-weight:600;">{{ $row['node'] ?? '-' }}</td>
+                            <td class="text-start">
+                                @if(isset($row['solution']))
+                                    @foreach($row['solution'] as $k => $v)
+                                        <span style="display:inline-block; min-width:40px;">x{{ $k+1 }} = {{ number_format($v, 4, ',', '.') }}</span><br>
+                                    @endforeach
+                                @else
+                                    -
+                                @endif
+                            </td>
+                            <td style="font-weight:600; color: var(--orion-ciano);">
+                                {{ isset($row['Z']) ? number_format($row['Z'], 4, ',', '.') : '-' }}
+                            </td>
+                            <td>
+                                @if(isset($row['status']))
+                                    @php
+                                        $statusClass = match($row['status']) {
+                                            'ótimo' => 'badge bg-success',
+                                            'fracionário' => 'badge bg-warning text-dark',
+                                            'inviável' => 'badge bg-danger',
+                                            default => 'badge bg-secondary'
+                                        };
+                                    @endphp
+                                    <span class="{{ $statusClass }}">{{ $row['status'] }}</span>
+                                @else
+                                    -
+                                @endif
+                            </td>
+                            <td>{{ $row['decision'] ?? '-' }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <style>
+            table.table-bordered {
+                border: 1px solid rgba(0,0,0,0.1);
+                font-size: 0.95rem;
+            }
+            table.table-bordered th, table.table-bordered td {
+                vertical-align: middle;
+                padding: 8px 6px;
+            }
+            table.table-bordered tbody tr:nth-child(even) {
+                background-color: rgba(0,0,0,0.02);
+            }
+        </style>
+        @endif
+
+
+
     </div>
 </div>
 

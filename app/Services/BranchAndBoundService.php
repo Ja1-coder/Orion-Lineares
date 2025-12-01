@@ -35,10 +35,10 @@ class BranchAndBoundService
             'desc' => 'root'
         ];
 
+        $table = []; // tabela detalhada
+
         while (!empty($nodes)) {
             $node = array_pop($nodes);
-
-            $history[] = "Processando nó: " . $node['desc'];
 
             // Executa o simplex para o nó atual
             $r = $this->simplex->resolver(
@@ -48,8 +48,17 @@ class BranchAndBoundService
                 count($objective)
             );
 
+            $row = [
+                'node' => $node['desc'],
+                'solution' => $r['solution'] ?? null,
+                'Z' => $r['value'] ?? null,
+                'status' => $r['status'] ?? 'unknown',
+                'decision' => ''
+            ];
+
             if ($r['status'] !== 'optimal') {
-                $history[] = "Nó inviável / ilimitado – descartado.";
+                $row['decision'] = 'Nó inviável / ilimitado – descartado';
+                $table[] = $row;
                 continue;
             }
 
@@ -57,15 +66,21 @@ class BranchAndBoundService
             $sol = $r['solution'];
 
             // Poda por bound
+            $poda = false;
             if ($best['value'] !== null) {
                 if ($tipo === 'max' && $z <= $best['value'] + 1e-9) {
-                    $history[] = "Poda por bound (max).";
-                    continue;
+                    $row['decision'] = 'Poda por bound (max)';
+                    $poda = true;
                 }
                 if ($tipo === 'min' && $z >= $best['value'] - 1e-9) {
-                    $history[] = "Poda por bound (min).";
-                    continue;
+                    $row['decision'] = 'Poda por bound (min)';
+                    $poda = true;
                 }
+            }
+
+            if ($poda) {
+                $table[] = $row;
+                continue;
             }
 
             // Checar integralidade
@@ -75,7 +90,8 @@ class BranchAndBoundService
                 // Nova melhor solução
                 $best['value'] = $z;
                 $best['solution'] = $sol;
-                $history[] = "Melhor solução inteira encontrada: Z = $z";
+                $row['decision'] = "Melhor solução inteira encontrada";
+                $table[] = $row;
                 continue;
             }
 
@@ -84,7 +100,8 @@ class BranchAndBoundService
             $floor = floor($xk);
             $ceil = ceil($xk);
 
-            $history[] = "Variável x".($fracIndex+1)." = $xk fracionária → branch criando dois nós.";
+            $row['decision'] = "Variável x".($fracIndex+1)." = $xk fracionária → branch";
+            $table[] = $row;
 
             // Nó esquerdo: xk <= floor
             $left = $node['restricoes'];
@@ -102,21 +119,20 @@ class BranchAndBoundService
                 'rhs' => $ceil
             ];
 
-            // Empilhar nós (DFS – mais eficiente)
             $nodes[] = [
                 'restricoes' => $left,
-                'desc' => "x".($fracIndex+1)." <= $floor"
+                'desc' => $node['desc'] . " -> x".($fracIndex+1)." <= $floor"
             ];
             $nodes[] = [
                 'restricoes' => $right,
-                'desc' => "x".($fracIndex+1)." >= $ceil"
+                'desc' => $node['desc'] . " -> x".($fracIndex+1)." >= $ceil"
             ];
         }
 
         if ($best['value'] === null) {
             return [
                 'status' => 'infeasible',
-                'history' => $history
+                'history' => $table
             ];
         }
 
@@ -124,9 +140,10 @@ class BranchAndBoundService
             'status' => 'optimal',
             'solution' => $best['solution'],
             'value' => $best['value'],
-            'history' => $history
+            'history' => $table
         ];
     }
+
 
 
     /** Retorna índice da variável fracionária ou null */
