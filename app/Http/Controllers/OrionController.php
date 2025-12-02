@@ -133,7 +133,7 @@ class OrionController extends Controller
 
             if (count($pontos) >= 2) {
                 $linhas[] = [
-                    'label' => "R." . ($i + 1),
+                'label' => "R." . ($i + 1),
                     'coords' => $pontos
                 ];
             }
