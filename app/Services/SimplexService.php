@@ -13,6 +13,7 @@ class SimplexService
             $messages = [];
             $isMin = $this->isMinimization($tipo);
             $c = array_map(fn($v) => floatval($v), $objective);
+
             if ($isMin) {
                 $c = array_map(fn($v) => -1.0 * $v, $c);
                 $messages[] = 'Minimização detectada: objetivo convertido (multiplicado por -1) para resolver pela forma de maximização.';
@@ -39,7 +40,6 @@ class SimplexService
                 foreach ($iterHist1 as $t) $history[] = $t;
 
                 if ($status1 === 'unbounded') {
-                    $messages[] = 'Phase 1: unbounded';
                     return $this->formatResult('unbounded', [], null, $history, $varNames, array_merge($messages, ['Phase 1: unbounded']));
                 }
 
@@ -66,28 +66,35 @@ class SimplexService
             }
 
             $solution = $this->extractSolutionFromTableau($tableau, $varNames, $numVars);
-
             $zval = $tableau[count($tableau) - 1][count($tableau[0]) - 1];
             if ($isMin) $zval = -1.0 * $zval;
 
             $dualSolution = $this->extractDualSolution($tableau, $varNames, count($restricoes));
-
             $multipleInfo = $this->checkMultipleSolutions($tableau, $varNames, $solution);
             $messages[] = $multipleInfo['message'];
+
+            // =========================
+            // Filtra apenas interações reais (com pivot definido)
+            // =========================
+            $filteredHistory = array_filter($history, function($h) {
+                return isset($h['pivot_row'], $h['pivot_col']) && $h['pivot_row'] !== null && $h['pivot_col'] !== null;
+            });
 
             return $this->formatResult(
                 'optimal',
                 $solution,
                 $zval,
-                $history,
+                array_values($filteredHistory), // resetar chaves do array
                 $varNames,
                 array_merge($messages, [$multipleInfo['message']]),
                 $dualSolution
             );
+
         } catch (\Throwable $e) {
             return $this->formatResult('error', [], null, [], [], [$e->getMessage()]);
         }
     }
+
 
     /* --------------------- Helpers --------------------- */
 
