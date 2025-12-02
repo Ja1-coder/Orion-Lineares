@@ -36,9 +36,25 @@
 
         <div class="col-12 col-md-11 col-lg-10">
 
+            {{-- Seção de mensagens gerais --}}
+            @if(!empty($mensagens))
+                <div class="mb-4">
+                    @foreach($mensagens as $msg)
+                        @php
+                            $tipo = $msg['type'] ?? 'info'; // 'success', 'warning', 'danger', 'info'
+                            $texto = $msg['text'] ?? $msg;
+                        @endphp
+                        <div class="alert alert-{{ $tipo }} py-2">
+                            <i class="fa-solid fa-{{ $tipo == 'success' ? 'check-circle' : ($tipo == 'warning' ? 'triangle-exclamation' : 'info-circle') }} me-1"></i>
+                            {{ $texto }}
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
             @if(isset($numVars) && $numVars == 2 && !empty($grafico))
                 <div class="card card-light p-3 p-md-4 mb-4">
-                    <h4 class="solution-title"><i class="fa-solid fa-chart-line me-2"></i>Visualização Gráfica</h4>
+                    <h4 class="solution-title"><i class="fa-solid fa-chart-line me-2"></i>Visualização Gráfica (2 Variáveis)</h4>
                     
                     <div style="position: relative; height: 400px; width: 100%;">
                         <canvas id="graficoSimplex"></canvas>
@@ -46,8 +62,8 @@
 
                     <div class="text-center mt-3">
                         <span class="badge bg-danger me-2">● Ponto Ótimo</span>
-                        <span class="badge me-2" style="background-color: #28a745; color: white; border: 1px dashed white;">-- Função Objetivo (Z)</span>
-                        <span class="text-muted small d-block mt-1">* Linhas sólidas representam as restrições. A linha tracejada verde indica a direção de crescimento de Z.</span>
+                        <span class="badge me-2" style="background-color: #28a745; color: white; border: 3px solid #28a745; opacity: 0.8;">-- Curva de Nível Ótima (Z)</span>
+                        <span class="text-muted small d-block mt-1">* Linhas sólidas representam as restrições. A linha tracejada representa a direção de crescimento de Z.</span>
                     </div>
                 </div>
             @endif
@@ -57,6 +73,14 @@
                     <div class="card card-light p-3 mb-4 h-100">
                         <div class="solution-box h-100">
                             <h2 class="solution-title">Solução Primal (Ótima)</h2>
+                            
+                            @if($resultado['multiple_solutions'] ?? false)
+                                <div class="alert alert-info mt-3 py-2">
+                                    <i class="fa-solid fa-lightbulb me-1"></i> **Solução Múltipla Detectada.**
+                                    <small class="d-block" style="font-size: 0.75rem; opacity: 0.9;">Existem infinitas soluções ao longo de uma aresta da região viável.</small>
+                                </div>
+                            @endif
+
                             <ul class="solution-list">
                                 @foreach($resultado['solution'] as $i => $valor)
                                     <li>
@@ -78,12 +102,19 @@
                             
                             @if($isInteger)
                                 <div class="alert alert-success mt-3 py-2">
-                                    <i class="fa-solid fa-check-circle me-1"></i> Solução Inteira Encontrada!
+                                    <i class="fa-solid fa-check-circle me-1"></i> Solução Inteira Naturalmente Encontrada!
                                 </div>
                             @else
                                 <div class="alert alert-warning mt-3 py-2">
                                     <i class="fa-solid fa-info-circle me-1"></i> Solução não é inteira.
                                     <small class="d-block" style="font-size: 0.75rem; opacity: 0.8;">Para garantir inteiros, seria necessário aplicar métodos como Branch & Bound.</small>
+                                </div>
+                                <div class="text-center mt-3">
+                                    <a href="{{ route('orion.solucao_inteira') }}"
+                                    class="btn btn-orion"
+                                    style="font-weight:600; padding:10px 18px; display:inline-block;">
+                                        Ver Solução Inteira (Branch & Bound)
+                                    </a>
                                 </div>
                             @endif
                         </div>
@@ -94,7 +125,7 @@
                     <div class="card card-light p-3 mb-4 h-100">
                         <div class="solution-box h-100" style="border-left-color: #ff9800;">
                             <h2 class="solution-title" style="color: #e65100;">Análise de Sensibilidade (Dual)</h2>
-                            <p class="text-muted small mb-3">Preços Sombra indicam o valor marginal de cada recurso.</p>
+                            <p class="text-muted small mb-3">Preços Sombra (y) indicam o valor marginal de cada recurso.</p>
                             
                             @if(isset($resultado['dual_solution']) && !empty($resultado['dual_solution']))
                                 <ul class="solution-list">
@@ -112,10 +143,10 @@
                     </div>
                 </div>
             </div>
-                            
+                                
             @if(!empty($resultado['tableau_history']))
             <div class="card card-light p-3 p-md-4 mt-4">
-                <h4 class="solution-title mb-4">Histórico de Iterações</h4>
+                <h4 class="solution-title mb-4">Histórico de Iterações (Forma Tabular)</h4>
                 
                 @foreach($resultado['tableau_history'] as $k => $step)
                     @php
@@ -133,12 +164,16 @@
                         foreach ($tableau as $rowIndex => $row) {
                             $found = false;
                             for ($col = 0; $col < $numCols; $col++) {
-                                $column = array_column($tableau, $col);
-                                $countOnes = 0; $countZeros = 0;
-                                foreach ($column as $v) { if (abs($v - 1) < 1e-6) $countOnes++; if (abs($v) < 1e-6) $countZeros++; }
-                                
-                                if ($countOnes === 1 && $countZeros === count($column) - 1 && abs($tableau[$rowIndex][$col] - 1) < 1e-6) {
-                                    $basicVars[$rowIndex] = $displayVarNames[$col] ?? 'col'.$col; $found = true; break;
+                                $isBasicCol = true;
+                                if (abs($row[$col] - 1) < 1e-6) {
+                                    for ($r=0; $r < count($tableau); $r++) {
+                                        if ($r !== $rowIndex && abs($tableau[$r][$col]) > 1e-6) {
+                                            $isBasicCol = false; break;
+                                        }
+                                    }
+                                    if ($isBasicCol) {
+                                        $basicVars[$rowIndex] = $displayVarNames[$col] ?? 'col'.$col; $found = true; break;
+                                    }
                                 }
                             }
                             if (!$found) $basicVars[$rowIndex] = ($rowIndex === count($tableau) - 1) ? 'Z' : '';
@@ -229,8 +264,22 @@
                 });
 
                 let pOtimo = null;
-                if (dados.ponto_otimo) {
-                    pOtimo = dados.ponto_otimo;
+                // 2. Plotar Linha de Soluções Ótimas (quando múltiplas soluções)
+                if (dados.solucao_otima && dados.solucao_otima.length > 1) {
+                    datasets.push({
+                        label: 'Soluções Ótimas',
+                        data: dados.solucao_otima,
+                        backgroundColor: '#dc3545',
+                        borderColor: '#dc3545',
+                        borderWidth: 2,
+                        showLine: true,
+                        fill: false,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        tension: 0
+                    });
+                } else if (dados.ponto_otimo) {
+                    const pOtimo = dados.ponto_otimo;
                     datasets.push({
                         label: 'Solução Ótima',
                         data: [pOtimo],
@@ -242,11 +291,11 @@
                     });
                 }
 
+
                 if (pOtimo && dados.z_coefs) {
                     const c1 = dados.z_coefs[0];
                     const c2 = dados.z_coefs[1];
                     const Zmax = c1 * pOtimo.x + c2 * pOtimo.y;
-                    
                     const ptsZ = [];
                     const limit = Math.max(pOtimo.x, pOtimo.y) * 2 + 5;
 
