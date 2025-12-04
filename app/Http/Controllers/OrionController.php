@@ -51,70 +51,65 @@ class OrionController extends Controller
         ]);
     }
 
-public function solve(Request $request)
-{
-    $tipo = $request->tipo_problema;
-    $numVars = $request->num_variaveis;
-    $numRests = $request->num_restricoes;
+    public function solve(Request $request)
+    {
+        $tipo = $request->tipo_problema;
+        $numVars = $request->num_variaveis;
+        $numRests = $request->num_restricoes;
 
-    // --- 1. Preparar dados para o Simplex ---
-    $Z = array_map('floatval', $request->z);
+        $Z = array_map('floatval', $request->z);
 
-    $restricoes = [];
-    foreach ($request->restricoes as $r) {
-        $restricoes[] = [
-            'coefs' => array_map('floatval', $r['coefs']),
-            'sinal' => $r['sinal'],
-            'rhs'   => floatval($r['rhs']),
-        ];
-    }
-
-    session([
-        'orion_input' => [
-            'tipo' => $tipo,
-            'numVars' => $numVars,
-            'numRests' => $numRests,
-            'Z' => $Z,
-            'restricoes' => $restricoes
-        ]
-    ]);
-
-    // Resolver Simplex
-    $resultado = $this->simplex->resolver($tipo, $Z, $restricoes, $numVars);
-
-    $grafico = [];
-
-    if ($numVars == 2) {
-        // Restrições originais para o gráfico
-        $originalRestricoes = [];
+        $restricoes = [];
         foreach ($request->restricoes as $r) {
-            $originalRestricoes[] = [
+            $restricoes[] = [
                 'coefs' => array_map('floatval', $r['coefs']),
                 'sinal' => $r['sinal'],
-                'rhs'   => floatval($r['rhs']),
+                'rhs' => floatval($r['rhs']),
             ];
         }
 
-        $grafico = $this->gerarDadosGrafico($originalRestricoes, $Z);
+        session([
+            'orion_input' => [
+                'tipo' => $tipo,
+                'numVars' => $numVars,
+                'numRests' => $numRests,
+                'Z' => $Z,
+                'restricoes' => $restricoes
+            ]
+        ]);
 
-        if ($resultado['status'] === 'optimal') {
-            $x = $resultado['solution'][0];
-            $y = $resultado['solution'][1];
+        $resultado = $this->simplex->resolver($tipo, $Z, $restricoes, $numVars);
 
-            // Apenas o ponto ótimo
-            $grafico['ponto_otimo'] = ['x' => $x, 'y' => $y];
-            $grafico['Z_otimo'] = $resultado['value'];
+        $grafico = [];
+
+        if ($numVars == 2) {
+            $originalRestricoes = [];
+            foreach ($request->restricoes as $r) {
+                $originalRestricoes[] = [
+                    'coefs' => array_map('floatval', $r['coefs']),
+                    'sinal' => $r['sinal'],
+                    'rhs' => floatval($r['rhs']),
+                ];
+            }
+
+            $grafico = $this->gerarDadosGrafico($originalRestricoes, $Z);
+
+            if ($resultado['status'] === 'optimal') {
+                $x = $resultado['solution'][0];
+                $y = $resultado['solution'][1];
+
+                $grafico['ponto_otimo'] = ['x' => $x, 'y' => $y];
+                $grafico['Z_otimo'] = $resultado['value'];
+            }
+
+            $grafico['tipo_problema'] = $tipo;
+            $grafico['z_coefs'] = $Z;
         }
 
-        $grafico['tipo_problema'] = $tipo;
-        $grafico['z_coefs'] = $Z;
+        $mensagens = $resultado['messages'] ?? [];
+
+        return view('resultado', compact('resultado', 'grafico', 'numVars', 'mensagens'));
     }
-
-    $mensagens = $resultado['messages'] ?? [];
-
-    //dd($grafico);
-    return view('resultado', compact('resultado', 'grafico', 'numVars', 'mensagens'));
-}
 
 
 
@@ -133,8 +128,10 @@ public function solve(Request $request)
             $b = floatval($res['coefs'][1] ?? 0);
             $c = floatval($res['rhs']);
 
-            if (abs($a) > $EPS && $c > -$EPS) $maxIntercept = max($maxIntercept, $c / $a);
-            if (abs($b) > $EPS && $c > -$EPS) $maxIntercept = max($maxIntercept, $c / $b);
+            if (abs($a) > $EPS && $c > -$EPS)
+                $maxIntercept = max($maxIntercept, $c / $a);
+            if (abs($b) > $EPS && $c > -$EPS)
+                $maxIntercept = max($maxIntercept, $c / $b);
         }
 
         $limit = ($maxIntercept > 0) ? ceil($maxIntercept) * 1.5 : 10;
@@ -148,11 +145,15 @@ public function solve(Request $request)
             $c = floatval($res['rhs']);
 
             $pontos = [];
-            if (abs($b) > $EPS) $pontos[] = ['x' => 0, 'y' => $c / $b];
-            if (abs($a) > $EPS) $pontos[] = ['x' => $c / $a, 'y' => 0];
+            if (abs($b) > $EPS)
+                $pontos[] = ['x' => 0, 'y' => $c / $b];
+            if (abs($a) > $EPS)
+                $pontos[] = ['x' => $c / $a, 'y' => 0];
 
-            if (abs($b) > $EPS) $pontos[] = ['x' => $limit, 'y' => ($c - $a * $limit) / $b];
-            if (abs($a) > $EPS) $pontos[] = ['x' => ($c - $b * $limit) / $a, 'y' => $limit];
+            if (abs($b) > $EPS)
+                $pontos[] = ['x' => $limit, 'y' => ($c - $a * $limit) / $b];
+            if (abs($a) > $EPS)
+                $pontos[] = ['x' => ($c - $b * $limit) / $a, 'y' => $limit];
 
             $pontosFiltados = [];
             foreach ($pontos as $p) {
@@ -164,8 +165,9 @@ public function solve(Request $request)
             }
 
             $pontosFiltados = array_unique($pontosFiltados, SORT_REGULAR);
-            usort($pontosFiltados, function($p1, $p2) {
-                if ($p1['x'] != $p2['x']) return $p1['x'] <=> $p2['x'];
+            usort($pontosFiltados, function ($p1, $p2) {
+                if ($p1['x'] != $p2['x'])
+                    return $p1['x'] <=> $p2['x'];
                 return $p1['y'] <=> $p2['y'];
             });
 
@@ -223,10 +225,8 @@ public function solve(Request $request)
 
         $resultado = $this->simplex->resolver($tipo, $Z, $restricoes, $numVars);
 
-        // Todas as variáveis inteiras
         $inteiras = range(0, $numVars - 1);
 
-        // Executa Branch and Bound
         $solucaoInteira = $this->bb->branchAndBound(
             $tipo,
             $Z,
@@ -234,7 +234,6 @@ public function solve(Request $request)
             $inteiras
         );
 
-        // Formata a solução final para chave-nome
         if (isset($solucaoInteira['solution'])) {
             $solucaoFinal = [];
             foreach ($nomesVars as $i => $nomeVar) {
@@ -243,7 +242,6 @@ public function solve(Request $request)
             $solucaoInteira['solution'] = $solucaoFinal;
         }
 
-        // Gráfico (somente se 2 variáveis)
         $grafico = [];
         if ($numVars == 2) {
             $grafico = $this->gerarDadosGrafico($restricoes, $Z);
@@ -257,20 +255,16 @@ public function solve(Request $request)
             }
         }
 
-        // Mensagens do Simplex
         $mensagens = $resultado['messages'] ?? [];
 
-        // Passa a tabela de Branch and Bound (history) para a view
         $tabelaBB = $solucaoInteira['history'] ?? [];
-
-        //dd($tabelaBB);
 
         return view('solucao_inteira', [
             'resultado' => $resultado,
             'solucaoInteira' => $solucaoInteira,
             'grafico' => $grafico,
             'mensagens' => $mensagens,
-            'tabelaBB' => $tabelaBB, // <- aqui está a tabela
+            'tabelaBB' => $tabelaBB,
         ]);
     }
 

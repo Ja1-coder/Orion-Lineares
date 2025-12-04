@@ -37,7 +37,8 @@ class SimplexService
                 $history[] = $this->copyTableau($tableau);
 
                 [$status1, $tableau, $iterHist1] = $this->runSimplexCore($tableau, $artificialIndexes);
-                foreach ($iterHist1 as $t) $history[] = $t;
+                foreach ($iterHist1 as $t)
+                    $history[] = $t;
 
                 if ($status1 === 'unbounded') {
                     return $this->formatResult('unbounded', [], null, $history, $varNames, array_merge($messages, ['Phase 1: unbounded']));
@@ -59,7 +60,8 @@ class SimplexService
             }
 
             [$status2, $tableau, $iterHist2] = $this->runSimplexCore($tableau);
-            foreach ($iterHist2 as $t) $history[] = $t;
+            foreach ($iterHist2 as $t)
+                $history[] = $t;
 
             if ($status2 === 'unbounded') {
                 return $this->formatResult('unbounded', [], null, $history, $varNames, array_merge($messages, ['Phase 2: unbounded']));
@@ -67,16 +69,14 @@ class SimplexService
 
             $solution = $this->extractSolutionFromTableau($tableau, $varNames, $numVars);
             $zval = $tableau[count($tableau) - 1][count($tableau[0]) - 1];
-            if ($isMin) $zval = -1.0 * $zval;
+            if ($isMin)
+                $zval = -1.0 * $zval;
 
             $dualSolution = $this->extractDualSolution($tableau, $varNames, count($restricoes));
             $multipleInfo = $this->checkMultipleSolutions($tableau, $varNames, $solution);
             $messages[] = $multipleInfo['message'];
 
-            // =========================
-            // Filtra apenas interações reais (com pivot definido)
-            // =========================
-            $filteredHistory = array_filter($history, function($h) {
+            $filteredHistory = array_filter($history, function ($h) {
                 return isset($h['pivot_row'], $h['pivot_col']) && $h['pivot_row'] !== null && $h['pivot_col'] !== null;
             });
 
@@ -84,7 +84,7 @@ class SimplexService
                 'optimal',
                 $solution,
                 $zval,
-                array_values($filteredHistory), // resetar chaves do array
+                array_values($filteredHistory),
                 $varNames,
                 array_merge($messages, [$multipleInfo['message']]),
                 $dualSolution
@@ -94,9 +94,6 @@ class SimplexService
             return $this->formatResult('error', [], null, [], [], [$e->getMessage()]);
         }
     }
-
-
-    /* --------------------- Helpers --------------------- */
 
     private function isMinimization(string $tipo): bool
     {
@@ -108,7 +105,8 @@ class SimplexService
     {
         $numOrig = count($c_orig);
         $varNames = [];
-        for ($i = 1; $i <= $numOrig; $i++) $varNames[] = "x{$i}";
+        for ($i = 1; $i <= $numOrig; $i++)
+            $varNames[] = "x{$i}";
 
         $rows = [];
         foreach ($restricoes as $r) {
@@ -117,9 +115,12 @@ class SimplexService
             $rhs = floatval($r['rhs']);
             if ($rhs < 0) {
                 $rhs *= -1;
-                foreach ($coefs as $k => $v) $coefs[$k] = -1.0 * $v;
-                if ($sinal === '<=') $sinal = '>=';
-                elseif ($sinal === '>=') $sinal = '<=';
+                foreach ($coefs as $k => $v)
+                    $coefs[$k] = -1.0 * $v;
+                if ($sinal === '<=')
+                    $sinal = '>=';
+                elseif ($sinal === '>=')
+                    $sinal = '<=';
             }
             $rows[] = ['coefs' => $coefs, 'sinal' => $sinal, 'rhs' => $rhs];
         }
@@ -133,8 +134,10 @@ class SimplexService
 
         foreach ($rows as $i => $r) {
             $line = $r['coefs'];
-            while (count($line) < $numOrig) $line[] = 0.0;
-            if ($currentExtra > 0) $line = array_merge($line, array_fill(0, $currentExtra, 0.0));
+            while (count($line) < $numOrig)
+                $line[] = 0.0;
+            if ($currentExtra > 0)
+                $line = array_merge($line, array_fill(0, $currentExtra, 0.0));
             $sinal = $r['sinal'];
             $rhs = $r['rhs'];
 
@@ -169,9 +172,12 @@ class SimplexService
         }
 
         $maxCols = max(array_map('count', $A));
-        foreach ($A as &$r) while (count($r) < $maxCols) $r[] = 0.0;
+        foreach ($A as &$r)
+            while (count($r) < $maxCols)
+                $r[] = 0.0;
         $c = array_map(fn($v) => floatval($v), $c_orig);
-        while (count($c) < $maxCols) $c[] = 0.0;
+        while (count($c) < $maxCols)
+            $c[] = 0.0;
 
         return [
             'A' => $A,
@@ -201,7 +207,8 @@ class SimplexService
         $numCols = count($tableau[0]);
         $phase1Obj = array_fill(0, $numCols, 0.0);
         foreach ($artificialIndexes as $col) {
-            if ($col >= 0 && $col < $numCols) $phase1Obj[$col] = -1.0;
+            if ($col >= 0 && $col < $numCols)
+                $phase1Obj[$col] = -1.0;
         }
         return $this->computePhase1ObjectiveRow($tableau, $phase1Obj, $artificialIndexes);
     }
@@ -210,16 +217,19 @@ class SimplexService
     {
         $row = array_map(fn($v) => floatval($v), $phase1Obj);
         $numCols = count($tableau[0]);
-        while (count($row) < $numCols) $row[] = 0.0;
+        while (count($row) < $numCols)
+            $row[] = 0.0;
         $m = count($tableau) - 1;
 
         foreach ($artificialIndexes as $colIndex) {
             $cB = $row[$colIndex] ?? 0.0;
-            if (abs($cB) < self::EPS) continue;
+            if (abs($cB) < self::EPS)
+                continue;
             for ($i = 0; $i < $m; $i++) {
                 $r = $tableau[$i];
                 if (isset($r[$colIndex]) && abs($r[$colIndex] - 1.0) < self::EPS) {
-                    for ($k = 0; $k < $numCols; $k++) $row[$k] += $cB * floatval($r[$k]);
+                    for ($k = 0; $k < $numCols; $k++)
+                        $row[$k] += $cB * floatval($r[$k]);
                     break;
                 }
             }
@@ -238,13 +248,15 @@ class SimplexService
         $iter = 0;
         while (true) {
             $iter++;
-            if ($iter > self::MAX_ITER) break;
+            if ($iter > self::MAX_ITER)
+                break;
 
             $lastRow = $tableau[$numRows - 1];
             $enterCol = null;
             $minVal = 0.0;
             for ($j = 0; $j < $numCols - 1; $j++) {
-                if ($inPhase1 && in_array($j, $artificialIndexes, true)) continue;
+                if ($inPhase1 && in_array($j, $artificialIndexes, true))
+                    continue;
                 $v = $lastRow[$j];
                 if ($v < $minVal - self::EPS) {
                     $minVal = $v;
@@ -302,15 +314,20 @@ class SimplexService
         $numRows = count($tableau);
         $numCols = count($tableau[0]);
         $pivotVal = $tableau[$pivotRow][$pivotCol];
-        if (abs($pivotVal) < self::EPS) throw new \Exception("Pivot value nearly zero.");
+        if (abs($pivotVal) < self::EPS)
+            throw new \Exception("Pivot value nearly zero.");
 
-        for ($j = 0; $j < $numCols; $j++) $tableau[$pivotRow][$j] /= $pivotVal;
+        for ($j = 0; $j < $numCols; $j++)
+            $tableau[$pivotRow][$j] /= $pivotVal;
 
         for ($i = 0; $i < $numRows; $i++) {
-            if ($i === $pivotRow) continue;
+            if ($i === $pivotRow)
+                continue;
             $factor = $tableau[$i][$pivotCol];
-            if (abs($factor) < self::EPS) continue;
-            for ($j = 0; $j < $numCols; $j++) $tableau[$i][$j] -= $factor * $tableau[$pivotRow][$j];
+            if (abs($factor) < self::EPS)
+                continue;
+            for ($j = 0; $j < $numCols; $j++)
+                $tableau[$i][$j] -= $factor * $tableau[$pivotRow][$j];
         }
 
         return $tableau;
@@ -328,17 +345,25 @@ class SimplexService
                 if (abs($tableau[$i][$artCol] - 1.0) < self::EPS) {
                     $isBasic = true;
                     for ($r = 0; $r < $numRows - 1; $r++) {
-                        if ($r === $i) continue;
-                        if (abs($tableau[$r][$artCol]) > self::EPS) { $isBasic = false; break; }
+                        if ($r === $i)
+                            continue;
+                        if (abs($tableau[$r][$artCol]) > self::EPS) {
+                            $isBasic = false;
+                            break;
+                        }
                     }
-                    if ($isBasic) { $basicRow = $i; break; }
+                    if ($isBasic) {
+                        $basicRow = $i;
+                        break;
+                    }
                 }
             }
 
             if ($basicRow !== null) {
                 $pivotFound = false;
                 for ($j = 0; $j < $numCols - 1; $j++) {
-                    if (in_array($j, $artificialIndexes, true)) continue;
+                    if (in_array($j, $artificialIndexes, true))
+                        continue;
                     if (abs($tableau[$basicRow][$j]) > self::EPS) {
                         $tableau = $this->pivotOperation($tableau, $basicRow, $j);
                         $pivotFound = true;
@@ -347,7 +372,8 @@ class SimplexService
                 }
             }
 
-            foreach ($tableau as &$row) array_splice($row, $artCol, 1);
+            foreach ($tableau as &$row)
+                array_splice($row, $artCol, 1);
             array_splice($varNames, $artCol, 1);
             $numCols = count($tableau[0]);
         }
@@ -376,11 +402,13 @@ class SimplexService
             $pivotCol = $this->findBasicColumnInRow($tableau, $i);
             if ($pivotCol !== null) {
                 $cB = $c_extended[$pivotCol] ?? 0.0;
-                for ($j = 0; $j < $numCols; $j++) $obj[$j] += $cB * $tableau[$i][$j];
+                for ($j = 0; $j < $numCols; $j++)
+                    $obj[$j] += $cB * $tableau[$i][$j];
             }
         }
 
-        while (count($obj) < $numCols) $obj[] = 0.0;
+        while (count($obj) < $numCols)
+            $obj[] = 0.0;
         return $obj;
     }
 
@@ -389,13 +417,19 @@ class SimplexService
         $numCols = count($tableau[0]);
         $numRows = count($tableau) - 1;
         for ($col = 0; $col < $numCols - 1; $col++) {
-            if (abs($tableau[$rowIndex][$col] - 1.0) > self::EPS) continue;
+            if (abs($tableau[$rowIndex][$col] - 1.0) > self::EPS)
+                continue;
             $isBasic = true;
             for ($r = 0; $r < $numRows; $r++) {
-                if ($r === $rowIndex) continue;
-                if (abs($tableau[$r][$col]) > self::EPS) { $isBasic = false; break; }
+                if ($r === $rowIndex)
+                    continue;
+                if (abs($tableau[$r][$col]) > self::EPS) {
+                    $isBasic = false;
+                    break;
+                }
             }
-            if ($isBasic) return $col;
+            if ($isBasic)
+                return $col;
         }
         return null;
     }
@@ -408,17 +442,24 @@ class SimplexService
 
         for ($col = 0; $col < min(count($varNames), $n); $col++) {
             $name = $varNames[$col];
-            if (!str_starts_with($name, 'x')) continue;
+            if (!str_starts_with($name, 'x'))
+                continue;
             $oneCount = 0;
             $oneRow = null;
             $nonZeroOther = false;
             for ($i = 0; $i < $m; $i++) {
-                if (abs($tableau[$i][$col] - 1.0) < self::EPS) { $oneCount++; $oneRow = $i; }
-                elseif (abs($tableau[$i][$col]) > self::EPS) { $nonZeroOther = true; break; }
+                if (abs($tableau[$i][$col] - 1.0) < self::EPS) {
+                    $oneCount++;
+                    $oneRow = $i;
+                } elseif (abs($tableau[$i][$col]) > self::EPS) {
+                    $nonZeroOther = true;
+                    break;
+                }
             }
             if ($oneCount === 1 && !$nonZeroOther && $oneRow !== null) {
                 $idx = intval(substr($name, 1)) - 1;
-                if ($idx >= 0 && $idx < $numVars) $solution[$idx] = $tableau[$oneRow][$n];
+                if ($idx >= 0 && $idx < $numVars)
+                    $solution[$idx] = $tableau[$oneRow][$n];
             }
         }
 
@@ -428,7 +469,8 @@ class SimplexService
     private function copyTableau(array $tableau): array
     {
         $copy = [];
-        foreach ($tableau as $r) $copy[] = array_map(fn($v) => floatval($v), $r);
+        foreach ($tableau as $r)
+            $copy[] = array_map(fn($v) => floatval($v), $r);
         return $copy;
     }
 
@@ -444,7 +486,8 @@ class SimplexService
                 $dualValues["y{$slackIndex}"] = $lastRow[$colIndex];
                 $slackIndex++;
             }
-            if ($slackIndex > $numRests) break;
+            if ($slackIndex > $numRests)
+                break;
         }
         return $dualValues;
     }
@@ -475,18 +518,18 @@ class SimplexService
             $name = $varNames[$j];
             $isBasic = false;
 
-            // Verifica se é coluna básica
             for ($i = 0; $i < $numRows; $i++) {
                 if (abs($tableau[$i][$j] - 1.0) < self::EPS) {
                     $sumOtherRows = 0.0;
                     for ($r = 0; $r < $numRows; $r++) {
-                        if ($r !== $i) $sumOtherRows += abs($tableau[$r][$j]);
+                        if ($r !== $i)
+                            $sumOtherRows += abs($tableau[$r][$j]);
                     }
-                    if ($sumOtherRows < self::EPS) $isBasic = true;
+                    if ($sumOtherRows < self::EPS)
+                        $isBasic = true;
                 }
             }
 
-            // Se não é básica e custo reduzido é zero → variável livre
             if (!$isBasic && abs($lastRow[$j]) < self::EPS) {
                 $multiple = true;
                 $freeVars[] = $name;

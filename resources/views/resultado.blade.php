@@ -36,12 +36,11 @@
 
         <div class="col-12 col-md-11 col-lg-10">
 
-            {{-- Seção de mensagens gerais --}}
             @if(!empty($mensagens))
                 <div class="mb-4">
                     @foreach($mensagens as $msg)
                         @php
-                            $tipo = $msg['type'] ?? 'info'; // 'success', 'warning', 'danger', 'info'
+                            $tipo = $msg['type'] ?? 'info';
                             $texto = $msg['text'] ?? $msg;
                         @endphp
                         <div class="alert alert-{{ $tipo }} py-2">
@@ -264,7 +263,6 @@
                 });
 
                 let pOtimo = null;
-                // 2. Plotar Linha de Soluções Ótimas (quando múltiplas soluções)
                 if (dados.solucao_otima && dados.solucao_otima.length > 1) {
                     datasets.push({
                         label: 'Soluções Ótimas',

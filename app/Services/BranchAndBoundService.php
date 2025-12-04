@@ -29,18 +29,16 @@ class BranchAndBoundService
         $nodes = [];
         $history = [];
 
-        // Nó raiz
         $nodes[] = [
             'restricoes' => $restricoes,
             'desc' => 'root'
         ];
 
-        $table = []; // tabela detalhada
+        $table = [];
 
         while (!empty($nodes)) {
             $node = array_pop($nodes);
 
-            // Executa o simplex para o nó atual
             $r = $this->simplex->resolver(
                 $tipo,
                 $objective,
@@ -65,7 +63,6 @@ class BranchAndBoundService
             $z = $r['value'];
             $sol = $r['solution'];
 
-            // Poda por bound
             $poda = false;
             if ($best['value'] !== null) {
                 if ($tipo === 'max' && $z <= $best['value'] + 1e-9) {
@@ -83,11 +80,9 @@ class BranchAndBoundService
                 continue;
             }
 
-            // Checar integralidade
             $fracIndex = $this->findFractional($sol, $integers);
 
             if ($fracIndex === null) {
-                // Nova melhor solução
                 $best['value'] = $z;
                 $best['solution'] = $sol;
                 $row['decision'] = "Melhor solução inteira encontrada";
@@ -95,7 +90,6 @@ class BranchAndBoundService
                 continue;
             }
 
-            // Variável fracionária encontrada
             $xk = $sol[$fracIndex];
             $floor = floor($xk);
             $ceil = ceil($xk);
@@ -103,7 +97,6 @@ class BranchAndBoundService
             $row['decision'] = "Variável x".($fracIndex+1)." = $xk fracionária → branch";
             $table[] = $row;
 
-            // Nó esquerdo: xk <= floor
             $left = $node['restricoes'];
             $left[] = [
                 'coefs' => $this->unitConstraint($fracIndex, count($objective)),
@@ -111,7 +104,6 @@ class BranchAndBoundService
                 'rhs' => $floor
             ];
 
-            // Nó direito: xk >= ceil
             $right = $node['restricoes'];
             $right[] = [
                 'coefs' => $this->unitConstraint($fracIndex, count($objective)),
@@ -146,7 +138,6 @@ class BranchAndBoundService
 
 
 
-    /** Retorna índice da variável fracionária ou null */
     private function findFractional(array $sol, array $ints): ?int
     {
         foreach ($ints as $i) {
@@ -157,7 +148,6 @@ class BranchAndBoundService
         return null;
     }
 
-    /** Cria vetor [0,0,1,0,0] para restrição x_k <= valor */
     private function unitConstraint(int $index, int $n)
     {
         $v = array_fill(0, $n, 0.0);
